@@ -493,6 +493,19 @@ public class Matrix {
         Matrix orthonormal = orthonormalBasis();
         return new Matrix[] {orthonormal,operator.multiply(orthonormal.transpose(),this)};
     }
+    //Proj vector y onto the collumn space of self. 
+    //Note: This has extreme applications to creating a curve of best fit.
+    //If you want y~c1*f1(x) + c2*f2(x)... cn*fn(x), where y and x represent arrays of corresponding values
+    //You can set this matrix = to {f1(x),f2(x),...fn(x)} (which are all vectors becuase x is a vector/array)
+    //You can then project y onto this matrix, yielding the vector (c1,c2...cn)
+    public Matrix proj(Matrix y){
+        MatrixOperator operator = new MatrixOperator();
+        return operator.multiply(operator.multiply(this.transpose(),this).inverse(),this.transpose(),y);
+    }
+    public Matrix residual(Matrix y){
+        MatrixOperator operator = new MatrixOperator();
+        return operator.add(y,operator.multiply(this,proj(y)).scale(-1));
+    }
     //Returns a printable version of the matrix
     @Override
     public String toString(){
