@@ -39,7 +39,7 @@ public class Matrix {
          matrix = new double[height][length];
          for(int i = 0; i<height;i++){
              for(int j = 0;j<length;j++){
-                 matrix[i][j]=Double.valueOf(initial3[i][j]);
+                 matrix[i][j]=Double.parseDouble(initial3[i][j]);
             }
          }
      }
@@ -228,17 +228,13 @@ public class Matrix {
         double out = 0;
         if(length==height){
             switch(length){
-                case 1:
-                    out=matrix[0][0];
-                    break;
-                case 2:
-                    out = matrix[0][0]*matrix[1][1]-matrix[0][1]*matrix[1][0];
-                    break;
-                default: 
+                case 1 -> out = matrix[0][0];
+                case 2-> out = (matrix[0][0]*matrix[1][1]-matrix[0][1]*matrix[1][0]);
+                default -> {
                     for(int j =0; j<length;j++){
                         out+= Math.pow(-1,j)*matrix[j][0]*subMatrix(0,j).det();
                     }
-                    break;
+                }
             }
         }
         return out;
@@ -299,6 +295,9 @@ public class Matrix {
     }
     //Returns the inverse matrix
     public Matrix inverse(){
+        if(length==1 && height==1){
+            return new Matrix(new double[][]{{1/matrix[0][0]}});
+        }
         Matrix out = adj();
         out.shrink(det());
         return out;
@@ -425,11 +424,10 @@ public class Matrix {
     public double IPMValueEstimate(double guess, Matrix startingVector, int iterations){
         MatrixOperator operator = new MatrixOperator();
         Matrix x = startingVector;
-        double max = 0;
         double v = 0;
         for(int i = 0; i<iterations+2;i++){
             Matrix y = operator.multiply(operator.add(this,operator.identity(height).scale(-guess)).inverse(),x);
-            max = 0;
+            double max = 0;
             for(int j = 0; j<height;j++){
                 if(max<Math.abs(y.get(0,j))){
                     max = y.get(0,j);
@@ -447,10 +445,9 @@ public class Matrix {
     public Matrix IPMVectorEstimate(double guess, Matrix startingVector, int iterations){
         MatrixOperator operator = new MatrixOperator();
         Matrix x = startingVector;
-        double max = 0;
         for(int i = 0; i<iterations+2;i++){
             Matrix y = operator.multiply(operator.add(this,operator.identity(height).scale(-guess)).inverse(),x);
-            max = 0;
+            double max = 0;
             for(int j = 0; j<height;j++){
                 if(max<Math.abs(y.get(0,j))){
                     max = y.get(0,j);
@@ -464,6 +461,11 @@ public class Matrix {
     //returns the matrix
     // this uses the Gram-Schmidt Process
     public Matrix orthonormalBasis(){
+        Matrix out = orthagonalBasis();
+        out.normalize();
+        return out;
+    }
+    public Matrix orthagonalBasis(){
         Matrix out = new Matrix(length,height);
         MatrixOperator operator = new MatrixOperator();
         if(length!=1){
@@ -477,34 +479,55 @@ public class Matrix {
                 out.setCollumn(i, proj);
             }
         }
-        out.normalize();
         return out;
     }
-    public void normalize(){
+    public Matrix normalize(){
         MatrixOperator operator = new MatrixOperator();
         for(int i = 0; i < length; i++){
             Matrix vi = getCollumnMatrix(i);
             setCollumn(i, vi.shrink(Math.sqrt(operator.dotProduct(vi,vi))));
         }
+        return this;
     }
-    //Reutrns the QR factorization of A
+    //Reutrns the QR factorization of A, with QR()[0] being Q, and QR()[1] being R
     public Matrix[] QR(){
         MatrixOperator operator = new MatrixOperator();
         Matrix orthonormal = orthonormalBasis();
         return new Matrix[] {orthonormal,operator.multiply(orthonormal.transpose(),this)};
     }
     //Proj vector y onto the collumn space of self. 
+    public Matrix proj(Matrix y){
+        MatrixOperator operator = new MatrixOperator();
+        return operator.multiply(new Matrix[] {this,operator.multiply(this.transpose(),this).inverse(),this.transpose(),y});
+    }
+    //Same as the above function, but projects with weighted data. 
+    public Matrix proj(Matrix W, Matrix y){
+        MatrixOperator operator = new MatrixOperator();
+        return operator.multiply(this, projectedWeights(W, y));
+    }
+    //Returns the vector b that multiplys with self to get A.proj(y) 
     //Note: This has extreme applications to creating a curve of best fit.
     //If you want y~c1*f1(x) + c2*f2(x)... cn*fn(x), where y and x represent arrays of corresponding values
     //You can set this matrix = to {f1(x),f2(x),...fn(x)} (which are all vectors becuase x is a vector/array)
-    //You can then project y onto this matrix, yielding the vector (c1,c2...cn)
-    public Matrix proj(Matrix y){
+    //You can then project y onto 
+    public Matrix projectedWeights(Matrix y){
         MatrixOperator operator = new MatrixOperator();
         return operator.multiply(operator.multiply(this.transpose(),this).inverse(),this.transpose(),y);
     }
+    //Same as the above function, but adds in a parameter matrix W, which is the respective weights given to each point.
+    public Matrix projectedWeights(Matrix W, Matrix y){
+        MatrixOperator operator = new MatrixOperator();
+        Matrix WA = operator.multiply(W,this);
+        return operator.multiply(new Matrix[]{operator.multiply(WA.transpose(),WA).inverse(),WA.transpose(),W,y});
+    }
     public Matrix residual(Matrix y){
         MatrixOperator operator = new MatrixOperator();
-        return operator.add(y,operator.multiply(this,proj(y)).scale(-1));
+        return operator.add(y,proj(y).scale(-1));
+    }
+    //returns the same but with projected weighted points
+    public Matrix residual(Matrix W, Matrix y){
+        MatrixOperator operator = new MatrixOperator();
+        return operator.add(y,proj(W,y).scale(-1));
     }
     //Returns a printable version of the matrix
     @Override
@@ -521,7 +544,8 @@ public class Matrix {
     }
     //Returns a printable version of the matrix
     //@param places - rturns the place value entered in 10^n
-    public String toString(int places){
+    public String toString(int decimals){
+        double places = Math.pow(10,decimals);
         String out = "";
         for(int j = 0; j<getHeight();j++){
             out+="| ";
